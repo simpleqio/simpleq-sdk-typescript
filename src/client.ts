@@ -1,0 +1,111 @@
+import { randomUUID } from 'node:crypto';
+import { HttpClient } from './http.js';
+import { SimpleQError, ValidationError } from './errors.js';
+import { constructEvent, verifyWebhookSignature } from './webhooks.js';
+import type {
+  AckResponse,
+  DeferOptions,
+  Job,
+  NackOptions,
+  PublishJobResponse,
+  PublishParams,
+  SimpleQOptions,
+} from './types.js';
+
+const DEFAULT_BASE_URL = 'https://api.simpleq.io';
+// Customer-facing durations are seconds throughout SimpleQ; convert to ms at the fetch boundary.
+const DEFAULT_TIMEOUT_SECONDS = 30;
+const DEFAULT_MAX_RETRIES = 2;
+// Mirrors package.json; surfaced in the User-Agent header.
+const VERSION = '0.1.0';
+
+/** The SimpleQ client: publish jobs, read job status, and run the ack-mode callbacks. */
+export class SimpleQ {
+  private readonly http: HttpClient;
+
+  /** Webhook signature helpers. Usable without an API key (only a `signingSecret` is needed). */
+  readonly webhooks = {
+    verify: verifyWebhookSignature,
+    constructEvent,
+  };
+
+  constructor(options: SimpleQOptions = {}) {
+    const apiKey = options.apiKey ?? process.env.SIMPLEQ_API_KEY;
+    if (!apiKey) {
+      throw new SimpleQError('A SimpleQ API key is required. Pass { apiKey } or set SIMPLEQ_API_KEY.');
+    }
+
+    const fetchImpl = options.fetch ?? globalThis.fetch;
+    if (typeof fetchImpl !== 'function') {
+      throw new SimpleQError('No fetch implementation found. Use Node 18+ or pass { fetch }.');
+    }
+
+    this.http = new HttpClient({
+      apiKey,
+      baseUrl: (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, ''),
+      timeout: (options.timeout ?? DEFAULT_TIMEOUT_SECONDS) * 1000,
+      maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
+      fetchImpl,
+      userAgent: `simpleq-node/${VERSION}`,
+    });
+  }
+
+  /**
+   * Publish a job to a queue. Retries transient failures automatically; by default a generated
+   * idempotency key is attached and reused across those retries, so a retry can never create a
+   * duplicate job. A 200 (idempotent hit) and a 201 (created) are both returned as success.
+   */
+  async publish(queueName: string, params: PublishParams): Promise<PublishJobResponse> {
+    const idempotencyKey =
+      params.idempotencyKey ?? (params.idempotent === false ? undefined : randomUUID());
+
+    const body: Record<string, unknown> = { payload: params.payload };
+    if (idempotencyKey !== undefined) body.idempotencyKey = idempotencyKey;
+    if (params.delay !== undefined) body.delay = params.delay;
+
+    return this.http.request<PublishJobResponse>({
+      method: 'POST',
+      path: `/v1/queues/${encodeURIComponent(queueName)}/jobs`,
+      body,
+    });
+  }
+
+  /** Fetch a job's current status and attempt history. */
+  async getJob(jobId: string): Promise<Job> {
+    return this.http.request<Job>({
+      method: 'GET',
+      path: `/v1/jobs/${encodeURIComponent(jobId)}`,
+    });
+  }
+
+  /** Ack a job (ack-mode queues): report successful completion. */
+  async ack(jobId: string): Promise<AckResponse> {
+    return this.http.request<AckResponse>({
+      method: 'POST',
+      path: `/v1/jobs/${encodeURIComponent(jobId)}/ack`,
+      body: {},
+    });
+  }
+
+  /** Nack a job (ack-mode queues): report failure. `retryable: false` dead-letters immediately. */
+  async nack(jobId: string, options: NackOptions = {}): Promise<AckResponse> {
+    return this.http.request<AckResponse>({
+      method: 'POST',
+      path: `/v1/jobs/${encodeURIComponent(jobId)}/nack`,
+      body: options,
+    });
+  }
+
+  /** Defer a job (ack-mode queues): apply backpressure — held and redelivered, no attempt burned. */
+  async defer(jobId: string, options: DeferOptions): Promise<AckResponse> {
+    const { retryAfter } = options ?? {};
+    if (typeof retryAfter !== 'number' || !Number.isFinite(retryAfter) || retryAfter < 0 || retryAfter > 3600) {
+      throw new ValidationError('defer requires retryAfter to be a number of seconds between 0 and 3600.', 400, undefined);
+    }
+    return this.http.request<AckResponse>({
+      method: 'POST',
+      path: `/v1/jobs/${encodeURIComponent(jobId)}/defer`,
+      body: options,
+    });
+  }
+}
