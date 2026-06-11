@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Weekly contract sweep — catches platform-side wire changes even when this repo is quiet.
+    - cron: '0 6 * * 1'
+  repository_dispatch:
+    # Fire from the platform's docs deploy for event-driven drift detection:
+    #   gh api repos/simpleqio/simpleq-sdk-typescript/dispatches -f event_type=contract-changed
+    types: [contract-changed]
 
 jobs:
   test:
@@ -19,3 +26,16 @@ jobs:
       - run: pnpm type-check
       - run: pnpm build
       - run: pnpm test
+
+  # Verifies the SDK's types against the published OpenAPI spec (see CONTRIBUTING.md).
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:contract

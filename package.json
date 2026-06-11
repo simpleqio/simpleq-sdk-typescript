@@ -83,7 +83,8 @@
     "audit:dts": "node scripts/audit-dts.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "check:contract": "node scripts/check-contract.mjs"
   },
   "peerDependencies": {
     "@nestjs/common": "^10.0.0 || ^11.0.0",
@@ -102,6 +103,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.7",
     "express": "^4.21.2",
+    "openapi-typescript": "^7.13.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "tsup": "^8.3.5",

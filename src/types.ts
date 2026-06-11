@@ -40,16 +40,16 @@ export interface JobAttempt {
   timestamp: string;
 }
 
-/** A job document as returned by `GET /v1/jobs/:id`. Timestamps are ISO-8601 strings. */
+/** A job as returned by `GET /v1/jobs/:id`. Timestamps are ISO-8601 strings. */
 export interface Job {
-  _id: string;
-  queueId: string;
-  orgId: string;
-  idempotencyKey: string | null;
-  payload: Record<string, unknown>;
+  id: string;
+  /** The queue name. */
+  queue: string;
   status: JobStatus;
   attempts: number;
   maxAttempts: number;
+  idempotencyKey: string | null;
+  payload: Record<string, unknown>;
   scheduledFor: string;
   lastError: string | null;
   history: JobAttempt[];

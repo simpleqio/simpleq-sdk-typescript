@@ -161,7 +161,7 @@ Each resolves to `{ id, accepted: true }`.
 
 ```ts
 const job = await simpleq.getJob(jobId);
-// job: { _id, status, attempts, maxAttempts, history, createdAt, completedAt, ... }
+// job: { id, queue, status, attempts, maxAttempts, history, createdAt, completedAt, ... }
 ```
 
 ## Errors
