@@ -11,7 +11,7 @@ export class SimpleQError extends Error {
 /** A network failure, timeout, or aborted request — retryable. */
 export class SimpleQConnectionError extends SimpleQError {}
 
-/** Thrown by `constructEvent` when a webhook signature does not verify. */
+/** Thrown by `verifyWebhook` when a webhook signature does not verify. */
 export class SignatureVerificationError extends SimpleQError {}
 
 export type BackpressureStatus = 429 | 503 | 529;
@@ -33,6 +33,48 @@ export class SimpleQBackpressure extends SimpleQError {
     this.retryAfter = retryAfter;
     this.status = options?.status ?? 503;
   }
+
+  /**
+   * Build a backpressure signal directly from a provider error (Anthropic, OpenAI, any
+   * HTTP-shaped error). Reads `err.status` (429/503/529 pass through; anything else maps
+   * to 503) and the `Retry-After` header in seconds from `err.headers` or
+   * `err.response.headers` (plain object or Headers). When no header is present,
+   * `options.fallback` seconds is used; with neither, SimpleQ applies its own 60s hold.
+   */
+  static from(err: unknown, options?: { fallback?: number; reason?: string }): SimpleQBackpressure {
+    const e = err as { status?: unknown; message?: unknown } | null | undefined;
+    const status: BackpressureStatus =
+      e?.status === 429 || e?.status === 503 || e?.status === 529 ? e.status : 503;
+    const retryAfter = retryAfterSeconds(err) ?? options?.fallback;
+    const reason =
+      options?.reason ?? (typeof e?.message === 'string' && e.message ? e.message : undefined);
+    return new SimpleQBackpressure(retryAfter, { status, reason });
+  }
+}
+
+function readHeader(headers: unknown, name: string): string | undefined {
+  if (!headers || typeof headers !== 'object') return undefined;
+  if (typeof (headers as Headers).get === 'function') {
+    return (headers as Headers).get(name) ?? undefined;
+  }
+  const record = headers as Record<string, unknown>;
+  const value = record[name.toLowerCase()] ?? record['Retry-After'];
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Read the `Retry-After` value, in **seconds**, from a provider error (Anthropic, OpenAI, any
+ * HTTP-shaped error). Looks at `err.headers` and `err.response.headers` (plain object or a
+ * `Headers` instance). Returns `undefined` when the header is absent or non-numeric (e.g. an
+ * HTTP-date). Pair with `simpleq.defer` in ack mode: `defer(id, { retryAfter: retryAfterSeconds(err) ?? 10 })`.
+ */
+export function retryAfterSeconds(err: unknown): number | undefined {
+  const e = err as { headers?: unknown; response?: { headers?: unknown } } | null | undefined;
+  const raw =
+    readHeader(e?.headers, 'retry-after') ?? readHeader(e?.response?.headers, 'retry-after');
+  if (raw === undefined) return undefined;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
 }
 
 /** Any non-2xx response from the SimpleQ API. */

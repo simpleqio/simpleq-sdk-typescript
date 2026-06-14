@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import type { Server } from 'node:http';
 import express from 'express';
 import { UnauthorizedException } from '@nestjs/common';
-import { simpleqWebhook, type SimpleQWebhookHandler } from '../src/express.js';
+import { simpleqWebhookHandler, type SimpleQWebhookHandler } from '../src/express.js';
 import {
   SimpleQSignatureGuard,
   SimpleQBackpressureFilter,
@@ -28,7 +28,7 @@ afterEach(() => {
 
 async function start(handler: SimpleQWebhookHandler): Promise<string> {
   const app = express();
-  app.post('/webhook', simpleqWebhook(SECRET, handler));
+  app.post('/webhook', simpleqWebhookHandler(SECRET, handler));
   const s = await new Promise<Server>((resolve) => {
     const listening = app.listen(0, () => resolve(listening));
   });

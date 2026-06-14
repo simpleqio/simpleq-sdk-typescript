@@ -20,7 +20,7 @@ import type {
   OptionalFactoryDependency,
   Provider,
 } from '@nestjs/common';
-import { constructEvent, SIGNATURE_HEADER } from './webhooks.js';
+import { verifyWebhook, SIGNATURE_HEADER } from './webhooks.js';
 import { SimpleQBackpressure } from './errors.js';
 import type { WebhookPayload } from './types.js';
 
@@ -66,7 +66,7 @@ export class SimpleQSignatureGuard implements CanActivate {
       );
     }
     try {
-      req.simpleqJob = constructEvent(
+      req.simpleqJob = verifyWebhook(
         req.rawBody,
         firstHeader(req.headers[SIGNATURE_HEADER]),
         this.options.signingSecret,

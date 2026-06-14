@@ -37,11 +37,12 @@ export function verifyWebhookSignature(
 }
 
 /**
- * Verify the signature and return the parsed, typed webhook envelope. Throws
- * `SignatureVerificationError` if the signature does not match — the body is only parsed
- * after verification passes, so a tampered payload never reaches `JSON.parse`.
+ * Verify the signature and return the parsed, typed webhook envelope (the equivalent of
+ * Stripe's `constructEvent`). Throws `SignatureVerificationError` if the signature does
+ * not match — the body is only parsed after verification passes, so a tampered payload
+ * never reaches `JSON.parse`.
  */
-export function constructEvent(
+export function verifyWebhook(
   rawBody: string | Buffer | Uint8Array,
   signatureHeader: string | null | undefined,
   signingSecret: string,

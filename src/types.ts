@@ -79,16 +79,14 @@ export interface SimpleQOptions {
 export interface PublishParams {
   /** Arbitrary JSON delivered verbatim to the queue's webhook. */
   payload: Record<string, unknown>;
-  /** Dedupe key (≤255 chars). Publishing twice with the same key returns the original job. */
+  /**
+   * Dedupe key (≤255 chars) for cross-call deduplication: publishing again with the same key
+   * returns the original job. Omit it and `publish` generates one per call and reuses it across
+   * the SDK's automatic retries, so a retried request can never create a duplicate job.
+   */
   idempotencyKey?: string;
   /** Delay first delivery by this many seconds (0–86400). */
   delay?: number;
-  /**
-   * When `true` (default), `publish` attaches an auto-generated idempotency key and reuses it
-   * across automatic retries, so a retried request can never create a duplicate job. Set `false`
-   * to send no key (at-least-once create semantics) when you don't supply your own.
-   */
-  idempotent?: boolean;
 }
 
 export interface NackOptions {

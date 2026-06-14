@@ -1,7 +1,7 @@
 // Express adapter — `@simpleq/sdk/express`. Requires the optional `express` peer dependency.
 import express from 'express';
 import type { Request, RequestHandler, Response } from 'express';
-import { constructEvent, SIGNATURE_HEADER } from './webhooks.js';
+import { verifyWebhook, SIGNATURE_HEADER } from './webhooks.js';
 import { SignatureVerificationError, SimpleQBackpressure } from './errors.js';
 import type { WebhookPayload } from './types.js';
 
@@ -23,14 +23,17 @@ export type SimpleQWebhookHandler = (
  * status + `Retry-After`; it throws anything else → `500`; bad signature → `401`. In ack mode,
  * resolve quickly (kick off background work) and report the outcome later via the client.
  */
-export function simpleqWebhook(signingSecret: string, handler: SimpleQWebhookHandler): RequestHandler {
+export function simpleqWebhookHandler(
+  signingSecret: string,
+  handler: SimpleQWebhookHandler,
+): RequestHandler {
   const captureRawBody = express.raw({ type: '*/*' });
 
   const handle = async (req: Request, res: Response): Promise<void> => {
     let job: WebhookPayload;
     try {
       const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from((req.body as string) ?? '');
-      job = constructEvent(body, req.header(SIGNATURE_HEADER), signingSecret);
+      job = verifyWebhook(body, req.header(SIGNATURE_HEADER), signingSecret);
     } catch (err) {
       if (err instanceof SignatureVerificationError) {
         res.status(401).end();

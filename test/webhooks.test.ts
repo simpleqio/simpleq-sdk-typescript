@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
 import {
   verifyWebhookSignature,
-  constructEvent,
+  verifyWebhook,
   SIGNATURE_HEADER,
   SignatureVerificationError,
 } from '../src/index.js';
@@ -53,9 +53,9 @@ describe('verifyWebhookSignature', () => {
   });
 });
 
-describe('constructEvent', () => {
+describe('verifyWebhook', () => {
   it('returns the typed payload on a valid signature', () => {
-    const event = constructEvent(BODY, FROZEN_SIG, SECRET);
+    const event = verifyWebhook(BODY, FROZEN_SIG, SECRET);
     expect(event.id).toBe('job_123');
     expect(event.queue).toBe('emails');
     expect(event.attempt).toBe(1);
@@ -65,7 +65,7 @@ describe('constructEvent', () => {
 
   it('throws SignatureVerificationError before parsing on a bad signature', () => {
     // Body is not valid JSON — must still surface the signature error, not a JSON parse error.
-    expect(() => constructEvent('not-json', 'sha256=bad', SECRET)).toThrow(SignatureVerificationError);
+    expect(() => verifyWebhook('not-json', 'sha256=bad', SECRET)).toThrow(SignatureVerificationError);
   });
 
   it('exports the canonical header name', () => {

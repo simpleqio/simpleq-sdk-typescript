@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { HttpClient } from './http.js';
 import { SimpleQError, ValidationError } from './errors.js';
-import { constructEvent, verifyWebhookSignature } from './webhooks.js';
+import { verifyWebhook, verifyWebhookSignature } from './webhooks.js';
 import type {
   AckResponse,
   DeferOptions,
@@ -25,8 +25,8 @@ export class SimpleQ {
 
   /** Webhook signature helpers. Usable without an API key (only a `signingSecret` is needed). */
   readonly webhooks = {
-    verify: verifyWebhookSignature,
-    constructEvent,
+    verifyWebhookSignature,
+    verifyWebhook,
   };
 
   constructor(options: SimpleQOptions = {}) {
@@ -51,13 +51,13 @@ export class SimpleQ {
   }
 
   /**
-   * Publish a job to a queue. Retries transient failures automatically; by default a generated
-   * idempotency key is attached and reused across those retries, so a retry can never create a
-   * duplicate job. A 200 (idempotent hit) and a 201 (created) are both returned as success.
+   * Publish a job to a queue. Retries transient failures automatically; the idempotency key
+   * (yours, or one generated per call when you omit it) is reused across those retries, so a
+   * retry can never create a duplicate job. A 200 (idempotent hit) and a 201 (created) are both
+   * returned as success.
    */
   async publish(queueName: string, params: PublishParams): Promise<PublishJobResponse> {
-    const idempotencyKey =
-      params.idempotencyKey ?? (params.idempotent === false ? undefined : randomUUID());
+    const idempotencyKey = params.idempotencyKey ?? randomUUID();
 
     const body: Record<string, unknown> = { payload: params.payload };
     if (idempotencyKey !== undefined) body.idempotencyKey = idempotencyKey;

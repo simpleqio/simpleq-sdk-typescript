@@ -38,10 +38,11 @@ describe('publish', () => {
     expect(bodyOf(calls[0]).idempotencyKey).toBe('my-key');
   });
 
-  it('sends no key when idempotent is false', async () => {
+  it('auto-generates a key when none is supplied', async () => {
     const { fetchImpl, calls } = mockFetch([jsonResponse(CREATED, 201)]);
-    await client(fetchImpl).publish('emails', { payload: {}, idempotent: false });
-    expect('idempotencyKey' in bodyOf(calls[0])).toBe(false);
+    await client(fetchImpl).publish('emails', { payload: {} });
+    expect(typeof bodyOf(calls[0]).idempotencyKey).toBe('string');
+    expect((bodyOf(calls[0]).idempotencyKey as string).length).toBeGreaterThan(0);
   });
 
   it('includes delay when provided', async () => {
