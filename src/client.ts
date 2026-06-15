@@ -16,8 +16,10 @@ const DEFAULT_BASE_URL = 'https://api.simpleq.io';
 // Customer-facing durations are seconds throughout SimpleQ; convert to ms at the fetch boundary.
 const DEFAULT_TIMEOUT_SECONDS = 30;
 const DEFAULT_MAX_RETRIES = 2;
-// Mirrors package.json; surfaced in the User-Agent header.
-const VERSION = '0.1.0';
+// Injected from package.json at build time (tsup) and test time (vitest) via `define`, so
+// `npm version` is the single source of truth and the User-Agent header can never drift.
+declare const __SDK_VERSION__: string;
+const VERSION = __SDK_VERSION__;
 
 /** The SimpleQ client: publish jobs, read job status, and run the ack-mode callbacks. */
 export class SimpleQ {
