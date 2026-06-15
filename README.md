@@ -1,5 +1,9 @@
 # @simpleq/sdk
 
+[![npm](https://img.shields.io/npm/v/@simpleq/sdk.svg)](https://www.npmjs.com/package/@simpleq/sdk)
+[![CI](https://github.com/simpleqio/simpleq-sdk-typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/simpleqio/simpleq-sdk-typescript/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/@simpleq/sdk.svg)](./LICENSE)
+
 Official Node/TypeScript SDK for [SimpleQ](https://docs.simpleq.io): publish jobs, verify webhook signatures, and run the ack-mode callbacks. ESM + CommonJS, bundled types, zero runtime dependencies. Requires Node 22+. All durations are in **seconds**. The live API contract is machine-readable at [docs.simpleq.io/openapi.json](https://docs.simpleq.io/openapi.json).
 
 ```bash
