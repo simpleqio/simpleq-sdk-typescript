@@ -17,51 +17,79 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import openapiTS, { astToString } from 'openapi-typescript';
 
 const DEFAULT_URL = 'https://docs.simpleq.io/openapi.json';
+const FETCH_TIMEOUT_MS = 20_000;
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
-// Fetches the spec once. Hashes the raw (decompressed) JSON bytes so the digest matches the
-// platform's `curl | sha256sum` (both hash the same uncompressed bytes).
-async function fetchSpec(url) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    console.error(`check-contract — failed to fetch spec from ${url}: HTTP ${res.status}`);
-    process.exit(1);
+// One fetch attempt. Returns {schema, hash} on 2xx, or null on ANY failure (network error,
+// timeout, non-2xx, or unparseable body) so callers can retry — a 15-minute poll must not
+// die on a single transient blip. Hashes the raw (decompressed) JSON bytes so the digest
+// matches the platform's `curl | sha256sum` (both hash the same uncompressed bytes).
+async function tryFetchSpec(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (!res.ok) {
+      console.warn(`check-contract — GET ${url} → HTTP ${res.status}; will retry`);
+      return null;
+    }
+    const bytes = Buffer.from(await res.arrayBuffer());
+    return { schema: JSON.parse(bytes.toString('utf8')), hash: sha256(bytes) };
+  } catch (err) {
+    console.warn(`check-contract — GET ${url} failed: ${err?.cause?.code ?? err?.message ?? err}; will retry`);
+    return null;
   }
-  const bytes = Buffer.from(await res.arrayBuffer());
-  return { schema: JSON.parse(bytes.toString('utf8')), hash: sha256(bytes) };
+}
+
+// Single definitive fetch (PR / push / cron path). Retries a few times to ride out transient
+// network blips, then fails hard if the spec is genuinely unreachable.
+async function fetchSpecOrExit(url, attempts = 5, gapMs = 3_000) {
+  for (let i = 1; i <= attempts; i++) {
+    const r = await tryFetchSpec(url);
+    if (r) return r.schema;
+    if (i < attempts) await sleep(gapMs);
+  }
+  console.error(`check-contract — could not fetch spec from ${url} after ${attempts} attempts`);
+  process.exit(1);
 }
 
 // Waits for the docs deploy to publish the new spec, then returns it. Baseline = the
 // platform's pre-deploy hash when it matches our first observation (proving the hashes are
 // comparable and the spec is still the old one); otherwise we fall back to our own first
-// observation, so a cross-tool hash mismatch can never make us assert the OLD spec by
-// mistake. Bounded; on timeout we assert against whatever's live (the weekly cron is the
-// correctness backstop).
+// observation, so a cross-tool hash mismatch can never make us assert the OLD spec by mistake.
+// Transient fetch failures are tolerated (retry next tick); we only conclude at the cap — assert
+// the last good spec if we ever saw one, else fail (15m unreachable = a real problem). The
+// weekly cron is the correctness backstop.
 async function fetchSpecAfterDeploy(url, prevSha) {
   const CAP_MS = 15 * 60_000;
   const INTERVAL_MS = 15_000;
   const start = Date.now();
-  let latest = await fetchSpec(url);
-  const baseline = latest.hash === prevSha ? prevSha : latest.hash;
-  console.log(
-    `check-contract — waiting for the new spec to publish (baseline ${baseline.slice(0, 12)}…, up to 15m)`,
-  );
+  let baseline = null;
+  let lastGood = null;
+  console.log('check-contract — waiting for the new spec to publish (up to 15m)');
   for (;;) {
-    const elapsed = Math.round((Date.now() - start) / 1000);
-    if (latest.hash !== baseline) {
-      console.log(`check-contract — new spec published after ~${elapsed}s`);
-      return latest.schema;
+    const r = await tryFetchSpec(url);
+    if (r) {
+      lastGood = r;
+      if (baseline === null) {
+        baseline = r.hash === prevSha ? prevSha : r.hash;
+        console.log(`check-contract — baseline ${baseline.slice(0, 12)}…; waiting for it to change`);
+      } else if (r.hash !== baseline) {
+        console.log(`check-contract — new spec published after ~${Math.round((Date.now() - start) / 1000)}s`);
+        return r.schema;
+      }
     }
     if (Date.now() - start >= CAP_MS) {
-      console.warn(
-        `check-contract — spec unchanged after ${elapsed}s; asserting against the current live spec (weekly cron is the backstop)`,
-      );
-      return latest.schema;
+      if (lastGood) {
+        console.warn(
+          'check-contract — spec unchanged after 15m; asserting against the current live spec (weekly cron is the backstop)',
+        );
+        return lastGood.schema;
+      }
+      console.error(`check-contract — could not fetch spec from ${url} within the 15m window`);
+      process.exit(1);
     }
     await sleep(INTERVAL_MS);
-    latest = await fetchSpec(url);
   }
 }
 
@@ -73,7 +101,7 @@ if (process.env.SIMPLEQ_OPENAPI_PATH) {
 } else {
   source = process.env.SIMPLEQ_OPENAPI_URL ?? DEFAULT_URL;
   const prevSha = process.env.SIMPLEQ_PREV_SPEC_SHA256;
-  schema = prevSha ? await fetchSpecAfterDeploy(source, prevSha) : (await fetchSpec(source)).schema;
+  schema = prevSha ? await fetchSpecAfterDeploy(source, prevSha) : await fetchSpecOrExit(source);
 }
 
 const ast = await openapiTS(schema);
