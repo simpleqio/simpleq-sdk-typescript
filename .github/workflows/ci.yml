@@ -39,3 +39,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:contract
+        env:
+          # On a platform `contract-changed` dispatch, this is the sha256 of the spec that
+          # was live BEFORE the platform's docs deploy; check:contract waits until the live
+          # spec differs from it before asserting, so it checks the NEW spec. Empty on
+          # push/PR/cron → single fetch, no wait.
+          SIMPLEQ_PREV_SPEC_SHA256: ${{ github.event.client_payload.prevSpecSha256 }}
