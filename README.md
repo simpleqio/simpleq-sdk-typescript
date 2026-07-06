@@ -6,6 +6,8 @@
 
 Official Node/TypeScript SDK for [SimpleQ](https://docs.simpleq.io): publish jobs, verify webhook signatures, and run the ack-mode callbacks. ESM + CommonJS, bundled types, zero runtime dependencies. Requires Node 22+. All durations are in **seconds**. The live API contract is machine-readable at [docs.simpleq.io/openapi.json](https://docs.simpleq.io/openapi.json).
 
+Full SDK documentation: **[docs.simpleq.io/sdk](https://docs.simpleq.io/sdk/)**.
+
 ```bash
 npm install @simpleq/sdk
 ```
@@ -17,9 +19,8 @@ An API key is **required** — pass `apiKey`, or set the `SIMPLEQ_API_KEY` envir
 ```ts
 import { SimpleQ } from '@simpleq/sdk';
 
-const simpleq = new SimpleQ(); // reads SIMPLEQ_API_KEY
-// or explicitly:
-const simpleq2 = new SimpleQ({ apiKey: 'sq_live_…' });
+// SIMPLEQ_API_KEY is read by the SDK automatically if no argument is passed
+const simpleq = new SimpleQ({ apiKey: process.env.SIMPLEQ_API_KEY });
 ```
 
 `SimpleQ(options)`:
@@ -157,14 +158,14 @@ The adapters (`simpleqWebhookHandler`, the Nest guard) map your handler's outcom
 | throws anything else | `500` | counts a failed attempt, retries with backoff |
 | bad signature | `401` | not a job outcome |
 
-**Backpressure** (a `429`/`503`/`529` from your downstream) tells SimpleQ to hold and redeliver the job without burning an attempt. In a **standard-mode** handler, `throw` a `SimpleQBackpressure` and the adapter turns it into the response; `SimpleQBackpressure.from(err, { fallback })` builds one from the provider error, relaying its status and `Retry-After`.
+**Backpressure** (a `429`/`503`/`529` from your downstream) tells SimpleQ to hold and redeliver the job without burning an attempt. In a **standard-mode** handler, `throw` a `SimpleQBackpressure` and the adapter turns it into the response; `SimpleQBackpressure.from(err, { fallback })` builds one from the downstream error, relaying its status and `Retry-After`.
 
 ```ts
 import { SimpleQBackpressure } from '@simpleq/sdk';
 
 simpleqWebhookHandler(process.env.SQ_SIGNING_SECRET_EMAILS!, async (job) => {
   try {
-    await callProvider(job.payload); // your downstream call
+    await doTheWork(job.payload); // your downstream call
   } catch (err) {
     if (err.status === 429 || err.status === 503 || err.status === 529) {
       throw SimpleQBackpressure.from(err, { fallback: 30 });
@@ -194,11 +195,11 @@ app.post(
     res.status(200).end(); // ack mode: respond now, do the work after
 
     try {
-      await callProvider(job.payload); // your downstream call
+      await doTheWork(job.payload); // your downstream call
       await simpleq.ack(job.id);
     } catch (err) {
       if (err.status === 429 || err.status === 503 || err.status === 529) {
-        // Backpressure: hold and redeliver, no attempt burned. Relay the provider's Retry-After.
+        // Backpressure: hold and redeliver, no attempt burned. Relay the downstream's Retry-After.
         await simpleq.defer(job.id, { retryAfter: retryAfterSeconds(err) ?? 10 });
       } else if (err.status >= 400 && err.status < 500) {
         await simpleq.nack(job.id, { retryable: false, reason: `downstream ${err.status}` }); // dead-letter
