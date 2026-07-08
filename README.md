@@ -45,7 +45,7 @@ const job = await simpleq.publish('emails', {
 });
 // job: {
 //   id: string;
-//   status: 'pending' | 'processing' | 'awaiting_ack' | 'completed' | 'failed' | 'dead';
+//   status: 'pending' | 'processing' | 'awaiting_ack' | 'completed' | 'dead';
 //   createdAt: string;  // ISO 8601
 // }
 ```
@@ -228,7 +228,7 @@ const job = await simpleq.getJob(jobId);
 // job: {
 //   id: string;
 //   queue: string;                       // queue name
-//   status: 'pending' | 'processing' | 'awaiting_ack' | 'completed' | 'failed' | 'dead';
+//   status: 'pending' | 'processing' | 'awaiting_ack' | 'completed' | 'dead';
 //   attempts: number;
 //   maxAttempts: number;
 //   idempotencyKey: string | null;
@@ -246,6 +246,10 @@ const job = await simpleq.getJob(jobId);
 //   completedAt: string | null;          // ISO 8601
 // }
 ```
+
+## Retention
+
+Once a job reaches a terminal state (completed or dead), its record — status and the full per-attempt `history` — is purged at its **72-hour-from-publish** deadline (on the next sweep pass), after which `getJob` throws `NotFoundError` (`.status === 404`). Dead-letter entries are removed at the same deadline, so a job that dies late in its life has correspondingly little replay time left. Idempotency keys dedupe for the job's retention lifetime: once the original job ages out, the same key creates a fresh job.
 
 ## Errors
 
