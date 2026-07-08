@@ -1,6 +1,6 @@
 {
   "name": "@simpleq/sdk",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Official Node/TypeScript SDK for SimpleQ — publish jobs, verify webhook signatures, and ack/nack/defer deliveries.",
   "license": "MIT",
   "type": "module",

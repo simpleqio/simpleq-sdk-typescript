@@ -1,7 +1,12 @@
 // Public types for @simpleq/sdk.
 
-/** Lifecycle status of a job. */
-export type JobStatus = 'pending' | 'processing' | 'awaiting_ack' | 'completed' | 'failed' | 'dead';
+/**
+ * Lifecycle status of a job. 'dead' is the single terminal-failure state
+ * (attempts exhausted or unrecoverable — the job is in the DLQ if enabled).
+ * Between retries a job stays 'processing'; per-attempt failures appear in
+ * `history[]` as JobAttemptStatus 'failed'.
+ */
+export type JobStatus = 'pending' | 'processing' | 'awaiting_ack' | 'completed' | 'dead';
 
 /** Outcome of a single delivery attempt. */
 export type JobAttemptStatus = 'success' | 'failed' | 'nacked' | 'deferred';
