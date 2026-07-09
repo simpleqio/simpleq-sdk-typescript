@@ -285,3 +285,11 @@ try {
   }
 }
 ```
+
+## Links
+
+- [SimpleQ docs](https://docs.simpleq.io)
+- [SDK reference](https://docs.simpleq.io/sdk/)
+- [GitHub](https://github.com/simpleqio/simpleq-sdk-typescript)
+- [npm](https://www.npmjs.com/package/@simpleq/sdk)
+- [LinkedIn](https://www.linkedin.com/company/simpleq-io)
