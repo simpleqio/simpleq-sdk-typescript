@@ -18,6 +18,11 @@ export interface WebhookPayload {
   payload: Record<string, unknown>;
   attempt: number;
   maxAttempts: number;
+  /**
+   * Backpressure holds (defers) this job has spent so far. Never counts against
+   * `maxAttempts`. Use it to apply your own defer cap (e.g. nack after N holds).
+   */
+  deferCount: number;
   createdAt: string;
 }
 
@@ -53,6 +58,12 @@ export interface Job {
   status: JobStatus;
   attempts: number;
   maxAttempts: number;
+  /**
+   * Backpressure holds (defers) spent so far, bounded by the queue's `maxDefers`
+   * budget — the counter behind a `defer_cap_exhausted` dead-letter. Never
+   * counts against `maxAttempts`.
+   */
+  deferCount: number;
   idempotencyKey: string | null;
   payload: Record<string, unknown>;
   scheduledFor: string;
@@ -101,7 +112,15 @@ export interface NackOptions {
 }
 
 export interface DeferOptions {
-  /** Hold the job for this many seconds, then redeliver without burning an attempt (0–3600). */
+  /**
+   * Hold the job for this many seconds, then redeliver without burning an
+   * attempt. Any finite value ≥ 0 — no fixed ceiling. Two platform bounds
+   * apply instead: the queue's `maxDefers` budget (default 50 holds per job;
+   * exhaustion dead-letters with `defer_cap_exhausted`) and the job's 24-hour
+   * delivery lifetime (a hold that would outlive it dead-letters immediately
+   * with `retry_after_exceeds_lifetime`). The defer call itself still succeeds
+   * either way — the job resolves to held or dead-lettered.
+   */
   retryAfter: number;
   reason?: string;
 }

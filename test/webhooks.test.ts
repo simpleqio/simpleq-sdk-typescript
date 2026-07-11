@@ -9,9 +9,9 @@ import {
 
 const SECRET = 'whsec_test_secret';
 const BODY =
-  '{"id":"job_123","queue":"emails","payload":{"to":"a@b.com"},"attempt":1,"maxAttempts":3,"createdAt":"2026-01-01T00:00:00.000Z"}';
+  '{"id":"job_123","queue":"emails","payload":{"to":"a@b.com"},"attempt":1,"maxAttempts":3,"deferCount":0,"createdAt":"2026-01-01T00:00:00.000Z"}';
 // Frozen known-answer vector — a regression in the digest changes this.
-const FROZEN_SIG = 'sha256=e43a7997ac90d33868eff6deba3b4088e79f110cdb6eb3be9c04a836ce7b1b6d';
+const FROZEN_SIG = 'sha256=121657c98dd43e360bc676dcaeee0cff0b7cc878de6c6b872021236080e366f9';
 
 // Mirrors apps/worker signPayload — the SDK must verify exactly what the worker signs.
 function workerSign(body: string, secret: string): string {
@@ -60,6 +60,7 @@ describe('verifyWebhook', () => {
     expect(event.queue).toBe('emails');
     expect(event.attempt).toBe(1);
     expect(event.maxAttempts).toBe(3);
+    expect(event.deferCount).toBe(0);
     expect(event.payload).toEqual({ to: 'a@b.com' });
   });
 

@@ -108,6 +108,14 @@ export class RateLimitError extends ApiError {
   }
 }
 
+/**
+ * `402` — the plan's monthly attempt quota is exhausted (Free plan hard stop on
+ * publish and DLQ replay). Deliberately NOT a 429: retrying cannot succeed —
+ * publishing resumes next billing cycle or immediately after upgrading. The SDK
+ * never auto-retries this.
+ */
+export class QuotaExceededError extends ApiError {}
+
 function extractMessage(status: number, body: unknown): string {
   if (body && typeof body === 'object' && 'error' in body) {
     const err = (body as { error: unknown }).error;
@@ -126,6 +134,8 @@ export function mapApiError(status: number, body: unknown, headers?: Headers): A
     case 401:
     case 403:
       return new AuthenticationError(message, status, body);
+    case 402:
+      return new QuotaExceededError(message, status, body);
     case 404:
       return new NotFoundError(message, status, body);
     case 429: {
