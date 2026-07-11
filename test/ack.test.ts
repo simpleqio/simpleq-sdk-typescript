@@ -34,11 +34,19 @@ describe('ack / nack / defer', () => {
     expect(calls[0].body).toEqual({ retryAfter: 30, reason: 'rate limited' });
   });
 
-  it('defer validates retryAfter range before making a request', async () => {
+  it('defer rejects negative and non-finite retryAfter before making a request', async () => {
     const { fetchImpl, calls } = mockFetch([jsonResponse(ACCEPTED)]);
     const c = client(fetchImpl);
     await expect(c.defer('job_1', { retryAfter: -1 })).rejects.toBeInstanceOf(ValidationError);
-    await expect(c.defer('job_1', { retryAfter: 4000 })).rejects.toBeInstanceOf(ValidationError);
+    await expect(c.defer('job_1', { retryAfter: NaN })).rejects.toBeInstanceOf(ValidationError);
+    await expect(c.defer('job_1', { retryAfter: Infinity })).rejects.toBeInstanceOf(ValidationError);
     expect(calls).toHaveLength(0);
+  });
+
+  it('defer has no upper bound — large holds reach the server (bounded by maxDefers + the 24h lifetime there)', async () => {
+    const { fetchImpl, calls } = mockFetch([jsonResponse(ACCEPTED)]);
+    await client(fetchImpl).defer('job_1', { retryAfter: 4000 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toEqual({ retryAfter: 4000 });
   });
 });

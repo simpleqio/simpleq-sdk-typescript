@@ -13,6 +13,7 @@ export {
   ValidationError,
   NotFoundError,
   RateLimitError,
+  QuotaExceededError,
 } from './errors.js';
 export type { BackpressureStatus } from './errors.js';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SimpleQ, ApiError, NotFoundError, ValidationError } from '../src/index.js';
+import { SimpleQ, ApiError, NotFoundError, ValidationError, QuotaExceededError } from '../src/index.js';
 import { jsonResponse, mockFetch } from './helpers.js';
 
 const CREATED = { id: 'job_1', status: 'pending', createdAt: '2026-01-01T00:00:00.000Z' };
@@ -49,6 +49,28 @@ describe('publish', () => {
     const { fetchImpl, calls } = mockFetch([jsonResponse(CREATED, 201)]);
     await client(fetchImpl).publish('emails', { payload: {}, delay: 30 });
     expect(bodyOf(calls[0]).delay).toBe(30);
+  });
+
+  it('surfaces a 402 monthly-quota stop as QuotaExceededError without retrying', async () => {
+    // The Free-plan cap 402s (deliberately not 429 — a quota can't succeed on
+    // retry). Exactly one call proves the SDK never auto-retries it.
+    const { fetchImpl, calls } = mockFetch([
+      () =>
+        jsonResponse(
+          {
+            error:
+              'Monthly attempt limit (30,000) reached on the Free plan. Publishing resumes on the 1st (UTC), or immediately after upgrading.',
+          },
+          402,
+        ),
+    ]);
+    const err = await client(fetchImpl)
+      .publish('emails', { payload: {} })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(QuotaExceededError);
+    expect((err as QuotaExceededError).status).toBe(402);
+    expect((err as QuotaExceededError).message).toContain('Monthly attempt limit');
+    expect(calls).toHaveLength(1);
   });
 
   it('retries a 503 and reuses the SAME idempotency key across attempts', async () => {

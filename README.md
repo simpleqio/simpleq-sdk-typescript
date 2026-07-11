@@ -83,6 +83,7 @@ const job = verifyWebhook(rawBody, signatureHeader, process.env.SQ_SIGNING_SECRE
 //   payload: Record<string, unknown>;  // your data, verbatim
 //   attempt: number;       // starts at 1
 //   maxAttempts: number;
+//   deferCount: number;    // backpressure holds so far — never counts against maxAttempts
 //   createdAt: string;     // ISO 8601 — when the job was published
 // }
 ```
@@ -217,7 +218,7 @@ The three callbacks, each resolving to `{ id: string; accepted: true }`:
 | --- | --- |
 | `simpleq.ack(id)` | Mark the job completed. |
 | `simpleq.nack(id, { retryable?, reason? })` | Mark failed. `retryable: false` dead-letters immediately; default `true` retries with backoff. `reason` ≤500 chars. |
-| `simpleq.defer(id, { retryAfter, reason? })` | Backpressure: held and redelivered, no attempt burned. `retryAfter` seconds (0–3600); `reason` ≤500 chars. |
+| `simpleq.defer(id, { retryAfter, reason? })` | Backpressure: held and redelivered, no attempt burned. `retryAfter` seconds (≥ 0, no fixed ceiling — pass a provider's retry hint straight through); `reason` ≤500 chars. Two platform bounds apply: the queue's `maxDefers` budget (default: 50 holds per job → `defer_cap_exhausted`) and the job's 24-hour delivery lifetime (an over-lifetime hold dead-letters immediately with `retry_after_exceeds_lifetime`). The call succeeds either way — the job resolves to held or dead-lettered. |
 
 ## getJob
 

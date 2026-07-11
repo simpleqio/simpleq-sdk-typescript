@@ -16,7 +16,16 @@ import { SimpleQBackpressure } from '../src/index.js';
 const SECRET = 'whsec_test_secret';
 const sign = (body: string) => 'sha256=' + createHmac('sha256', SECRET).update(body).digest('hex');
 const envelope = (over: Record<string, unknown> = {}) =>
-  JSON.stringify({ id: 'j1', queue: 'q', payload: {}, attempt: 1, maxAttempts: 3, createdAt: 'now', ...over });
+  JSON.stringify({
+    id: 'j1',
+    queue: 'q',
+    payload: {},
+    attempt: 1,
+    maxAttempts: 3,
+    deferCount: 0,
+    createdAt: 'now',
+    ...over,
+  });
 
 // ---------- Express adapter (integration) ----------
 

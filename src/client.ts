@@ -101,8 +101,10 @@ export class SimpleQ {
   /** Defer a job (ack-mode queues): apply backpressure — held and redelivered, no attempt burned. */
   async defer(jobId: string, options: DeferOptions): Promise<AckResponse> {
     const { retryAfter } = options ?? {};
-    if (typeof retryAfter !== 'number' || !Number.isFinite(retryAfter) || retryAfter < 0 || retryAfter > 3600) {
-      throw new ValidationError('defer requires retryAfter to be a number of seconds between 0 and 3600.', 400, undefined);
+    // No upper bound: the platform bounds holds by the queue's maxDefers budget
+    // and the job's 24h delivery lifetime, not a fixed ceiling.
+    if (typeof retryAfter !== 'number' || !Number.isFinite(retryAfter) || retryAfter < 0) {
+      throw new ValidationError('defer requires retryAfter to be a finite number of seconds ≥ 0.', 400, undefined);
     }
     return this.http.request<AckResponse>({
       method: 'POST',
