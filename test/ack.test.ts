@@ -43,10 +43,24 @@ describe('ack / nack / defer', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('defer has no upper bound — large holds reach the server (bounded by maxDefers + the 24h lifetime there)', async () => {
+  it('defer has no upper bound — large holds reach the server (bounded by the 24h lifetime there)', async () => {
     const { fetchImpl, calls } = mockFetch([jsonResponse(ACCEPTED)]);
     await client(fetchImpl).defer('job_1', { retryAfter: 4000 });
     expect(calls).toHaveLength(1);
     expect(calls[0].body).toEqual({ retryAfter: 4000 });
+  });
+
+  it('defer omits scope by default, letting the server apply queue scope', async () => {
+    const { fetchImpl, calls } = mockFetch([jsonResponse(ACCEPTED)]);
+    await client(fetchImpl).defer('job_1', { retryAfter: 30 });
+    // Deliberately absent rather than sent as 'queue': the default lives in one place
+    // (the API), so an SDK that predates a change to it can't pin the old behavior.
+    expect(calls[0].body).toEqual({ retryAfter: 30 });
+  });
+
+  it('defer forwards an explicit scope', async () => {
+    const { fetchImpl, calls } = mockFetch([jsonResponse(ACCEPTED)]);
+    await client(fetchImpl).defer('job_1', { retryAfter: 30, scope: 'job' });
+    expect(calls[0].body).toEqual({ retryAfter: 30, scope: 'job' });
   });
 });

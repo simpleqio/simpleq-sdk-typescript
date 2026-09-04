@@ -218,7 +218,7 @@ The three callbacks, each resolving to `{ id: string; accepted: true }`:
 | --- | --- |
 | `simpleq.ack(id)` | Mark the job completed. |
 | `simpleq.nack(id, { retryable?, reason? })` | Mark failed. `retryable: false` dead-letters immediately; default `true` retries with backoff. `reason` ≤500 chars. |
-| `simpleq.defer(id, { retryAfter, reason? })` | Backpressure: held and redelivered, no attempt burned. `retryAfter` seconds (≥ 0, no fixed ceiling — pass a provider's retry hint straight through); `reason` ≤500 chars. Two platform bounds apply: the queue's `maxDefers` budget (default: 50 holds per job → `defer_cap_exhausted`) and the job's 24-hour delivery lifetime (an over-lifetime hold dead-letters immediately with `retry_after_exceeds_lifetime`). The call succeeds either way — the job resolves to held or dead-lettered. |
+| `simpleq.defer(id, { retryAfter, scope?, reason? })` | Backpressure. By default the **whole queue** stops delivering for `retryAfter` seconds, then one job goes out as a probe — if it succeeds the queue resumes at its normal concurrency, and if it reports backpressure again the queue holds again. Held jobs are never delivered, so they are not billed; the probe is a real delivery and is billed like any other, so a rate-limit event costs one delivery instead of one per job. Neither scope counts against `maxAttempts`. `retryAfter` is in seconds (≥ 0, honored exactly — pass a provider's retry hint straight through); `scope: 'job'` holds only this job; `reason` ≤500 chars. A hold that would outlive the job's 24-hour delivery lifetime dead-letters it with `retry_after_exceeds_lifetime`, and the queue is held either way. |
 
 ## getJob
 
