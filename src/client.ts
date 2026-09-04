@@ -98,11 +98,19 @@ export class SimpleQ {
     });
   }
 
-  /** Defer a job (ack-mode queues): apply backpressure — held and redelivered, no attempt burned. */
+  /**
+   * Defer a job (ack-mode queues): report downstream backpressure.
+   *
+   * By default this holds the WHOLE queue for `retryAfter` seconds, then releases
+   * one job as a probe — a 429 describes the downstream, and a SimpleQ queue points
+   * at one webhook URL. Held jobs are never delivered, so they are not billed — the
+   * event costs one probe delivery rather than one per job. Backpressure never counts
+   * against `maxAttempts`. Pass `scope: 'job'` to hold only this job.
+   */
   async defer(jobId: string, options: DeferOptions): Promise<AckResponse> {
     const { retryAfter } = options ?? {};
-    // No upper bound: the platform bounds holds by the queue's maxDefers budget
-    // and the job's 24h delivery lifetime, not a fixed ceiling.
+    // No upper bound: retryAfter is honored as given. The job's 24h delivery lifetime
+    // is the only thing that bounds a hold, and it dead-letters rather than clamping.
     if (typeof retryAfter !== 'number' || !Number.isFinite(retryAfter) || retryAfter < 0) {
       throw new ValidationError('defer requires retryAfter to be a finite number of seconds ≥ 0.', 400, undefined);
     }

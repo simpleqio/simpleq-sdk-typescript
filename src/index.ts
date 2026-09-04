@@ -29,5 +29,6 @@ export type {
   PublishParams,
   NackOptions,
   DeferOptions,
+  DeferScope,
   SimpleQOptions,
 } from './types.js';

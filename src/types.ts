@@ -111,16 +111,34 @@ export interface NackOptions {
   reason?: string;
 }
 
+/**
+ * How far a backpressure signal reaches.
+ *
+ * - `'queue'` (default) — stop delivering from the whole queue. A 429 is a fact
+ *   about the downstream, and a SimpleQ queue points at one webhook URL, so the
+ *   queue is the downstream. Jobs held this way are never delivered, so they
+ *   are not billed.
+ * - `'job'` — hold only this job and leave the rest of the queue delivering.
+ *   For a wait that is about this job rather than the downstream.
+ */
+export type DeferScope = 'queue' | 'job';
+
 export interface DeferOptions {
   /**
-   * Hold the job for this many seconds, then redeliver without burning an
-   * attempt. Any finite value ≥ 0 — no fixed ceiling. Two platform bounds
-   * apply instead: the queue's `maxDefers` budget (default 50 holds per job;
-   * exhaustion dead-letters with `defer_cap_exhausted`) and the job's 24-hour
-   * delivery lifetime (a hold that would outlive it dead-letters immediately
-   * with `retry_after_exceeds_lifetime`). The defer call itself still succeeds
-   * either way — the job resolves to held or dead-lettered.
+   * Stop delivery for this many seconds, then try again. Any finite value ≥ 0 —
+   * honored exactly as given, with no ceiling and no minimum. Pass a provider's
+   * `Retry-After` straight through.
+   *
+   * When the wait is up SimpleQ releases a single job as a probe: if it succeeds
+   * the queue resumes at its normal concurrency, and if it reports backpressure
+   * again the queue is held again. Backpressure never counts against `maxAttempts`. The
+   * probe is a real delivery and is billed as one; the jobs held behind it are not
+   * delivered at all, so a rate-limit event costs one delivery rather than one per job.
    */
   retryAfter: number;
+  /**
+   * Defaults to `'queue'`. See {@link DeferScope}.
+   */
+  scope?: DeferScope;
   reason?: string;
 }
